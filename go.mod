@@ -1,0 +1,5 @@
+module github.com/nxlak/mts-test
+
+go 1.26.1
+
+require golang.org/x/mod v0.34.0
