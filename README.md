@@ -10,9 +10,9 @@ make build
 
 ```bash
 # Check a repository for dependency updates
-./mts-test github.com/stretchr/testify
+./mts-test github.com/example/repo
 # or
-./mts-test https://github.com/nxlak/test
+./mts-test https://github.com/example/repo
 
 # Show all dependencies (including indirect)
 ./mts-test github.com/example/repo -a
