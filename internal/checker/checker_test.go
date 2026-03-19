@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nxlak/mts-test/internal/models"
+	"golang.org/x/mod/module"
 )
 
 func newTestServer(t *testing.T, responses map[string]string) *httptest.Server {
@@ -33,6 +34,7 @@ func TestChecker_FindUpdates(t *testing.T) {
 	srv := newTestServer(t, map[string]string{
 		"github.com/stretchr/testify": "v1.9.0", // newer than v1.8.0
 		"github.com/gomodule/redigo":  "v1.9.3", // same as pinned
+		"github.com/golang-jwt/jwt":   "v4.5.0", // newer than v4.0.0
 	})
 	defer srv.Close()
 
@@ -45,7 +47,7 @@ func TestChecker_FindUpdates(t *testing.T) {
 	deps := []models.Dependency{
 		{Path: "github.com/stretchr/testify", CurrentVersion: "v1.8.0"},
 		{Path: "github.com/gomodule/redigo", CurrentVersion: "v1.9.3"},
-		{Path: "github.com/golang-jwt/jwt", CurrentVersion: "v4.0.0"}, // 404 → skipped
+		{Path: "github.com/golang-jwt/jwt", CurrentVersion: "v4.0.0"},
 	}
 
 	updates, err := c.FindUpdates(context.Background(), deps)
@@ -53,14 +55,20 @@ func TestChecker_FindUpdates(t *testing.T) {
 		t.Fatalf("FindUpdates: %v", err)
 	}
 
-	if len(updates) != 1 {
-		t.Fatalf("len(updates) = %d; want 1", len(updates))
+	if len(updates) != 2 {
+		t.Fatalf("len(updates) = %d; want 2", len(updates))
 	}
 	if updates[0].Path != "github.com/stretchr/testify" {
 		t.Errorf("updates[0].Path = %q; want github.com/stretchr/testify", updates[0].Path)
 	}
 	if updates[0].LatestVersion != "v1.9.0" {
 		t.Errorf("updates[0].LatestVersion = %q; want v1.9.0", updates[0].LatestVersion)
+	}
+	if updates[1].Path != "github.com/golang-jwt/jwt" {
+		t.Errorf("updates[1].Path = %q; want github.com/golang-jwt/jwt", updates[1].Path)
+	}
+	if updates[1].LatestVersion != "v4.5.0" {
+		t.Errorf("updates[1].LatestVersion = %q; want v4.5.0", updates[1].LatestVersion)
 	}
 }
 
@@ -108,7 +116,10 @@ func Test_encodePath(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := encodePath(tt.input)
+		got, err := module.EscapePath(tt.input)
+		if err != nil {
+			t.Fatalf("encodePath(%q) unexpected error: %v", tt.input, err)
+		}
 		if got != tt.want {
 			t.Errorf("encodePath(%q) = %q; want %q", tt.input, got, tt.want)
 		}

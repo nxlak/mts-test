@@ -3,6 +3,7 @@ package cloner
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,7 +21,10 @@ func NewCloner() Cloner {
 }
 
 func (c *cloner) Clone(ctx context.Context, repoURL string) (string, func(), error) {
-	url := normaliseURL(repoURL)
+	url, err := normalizeAndValidateURL(repoURL)
+	if err != nil {
+		return "", nil, fmt.Errorf("git: invalid repo url: %w", err)
+	}
 
 	if err := checkGitAvailable(); err != nil {
 		return "", nil, err
@@ -43,12 +47,39 @@ func (c *cloner) Clone(ctx context.Context, repoURL string) (string, func(), err
 	return tmpDir, clean, nil
 }
 
-func normaliseURL(raw string) string {
-	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") ||
-		strings.HasPrefix(raw, "git@") || strings.HasPrefix(raw, "ssh://") {
-		return raw
+func normalizeAndValidateURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("empty repo url")
 	}
-	return "https://" + raw
+
+	if strings.HasPrefix(raw, "git@") {
+		if !strings.Contains(raw, ":") {
+			return "", fmt.Errorf("invalid ssh repo url: %q", raw)
+		}
+		return raw, nil
+	}
+
+	if !strings.HasPrefix(raw, "http://") &&
+		!strings.HasPrefix(raw, "https://") &&
+		!strings.HasPrefix(raw, "ssh://") {
+		raw = "https://" + raw
+	}
+
+	u, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid repo url %q: %w", raw, err)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("invalid repo url %q: empty host", raw)
+	}
+
+	switch u.Scheme {
+	case "http", "https", "ssh":
+		return raw, nil
+	default:
+		return "", fmt.Errorf("unsupported repo url scheme %q", u.Scheme)
+	}
 }
 
 func checkGitAvailable() error {

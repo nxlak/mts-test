@@ -3,7 +3,7 @@ package render
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 	"text/tabwriter"
 
 	"github.com/nxlak/mts-test/internal/models"
@@ -16,42 +16,6 @@ const (
 	colIndirect  = "INDIRECT"
 	colSeparator = "------\t-------\t------\t--------"
 )
-
-// outputs report in text / json format
-func Render(format string, report *models.Report) error {
-	switch format {
-	case "json":
-		return renderJSON(report)
-	default:
-		return renderText(report)
-	}
-}
-
-func renderText(r *models.Report) error {
-	fmt.Printf("Module  : %s\n", r.ModuleName)
-	fmt.Printf("Go      : %s\n", r.GoVersion)
-	fmt.Printf("Updates : %d\n\n", len(r.Updates))
-
-	if len(r.Updates) == 0 {
-		fmt.Println("All dependencies are up to date.")
-		return nil
-	}
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	defer w.Flush()
-
-	fmt.Fprintln(w, colModule+"\t"+colCurrent+"\t"+colLatest+"\t"+colIndirect)
-	fmt.Fprintln(w, colSeparator)
-	for _, u := range r.Updates {
-		indirect := ""
-		if u.Indirect {
-			indirect = "yes"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", u.Path, u.CurrentVersion, u.LatestVersion, indirect)
-	}
-
-	return nil
-}
 
 type jsonReport struct {
 	ModuleName string       `json:"module_name"`
@@ -66,7 +30,43 @@ type jsonUpdate struct {
 	Indirect       bool   `json:"indirect"`
 }
 
-func renderJSON(r *models.Report) error {
+// outputs report in text / json format
+func Render(w io.Writer, format string, report *models.Report) error {
+	switch format {
+	case "json":
+		return renderJSON(w, report)
+	default:
+		return renderText(w, report)
+	}
+}
+
+func renderText(w io.Writer, r *models.Report) error {
+	fmt.Fprintf(w, "Module  : %s\n", r.ModuleName)
+	fmt.Fprintf(w, "Go      : %s\n", r.GoVersion)
+	fmt.Fprintf(w, "Updates : %d\n\n", len(r.Updates))
+
+	if len(r.Updates) == 0 {
+		_, err := fmt.Fprintln(w, "All dependencies have actual versions.")
+		return err
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	defer tw.Flush()
+
+	fmt.Fprintln(tw, colModule+"\t"+colCurrent+"\t"+colLatest+"\t"+colIndirect)
+	fmt.Fprintln(tw, colSeparator)
+	for _, u := range r.Updates {
+		indirect := ""
+		if u.Indirect {
+			indirect = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", u.Path, u.CurrentVersion, u.LatestVersion, indirect)
+	}
+
+	return nil
+}
+
+func renderJSON(w io.Writer, r *models.Report) error {
 	out := jsonReport{
 		ModuleName: r.ModuleName,
 		GoVersion:  r.GoVersion,
@@ -83,7 +83,7 @@ func renderJSON(r *models.Report) error {
 		out.Updates = []jsonUpdate{}
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
 }

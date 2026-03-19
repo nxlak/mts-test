@@ -39,7 +39,11 @@ func Test_normaliseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := normaliseURL(tt.input)
+			got, err := normalizeAndValidateURL(tt.input)
+			if err != nil {
+				t.Fatalf("normalizeAndValidateURL(%q): unexpected error: %v", tt.input, err)
+			}
+
 			if got != tt.want {
 				t.Errorf("normaliseURL(%q) = %q; want %q", tt.input, got, tt.want)
 			}

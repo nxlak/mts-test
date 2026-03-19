@@ -8,7 +8,10 @@ import (
 	"syscall"
 
 	"github.com/nxlak/mts-test/internal/analyzer"
+	"github.com/nxlak/mts-test/internal/checker"
+	"github.com/nxlak/mts-test/internal/cloner"
 	"github.com/nxlak/mts-test/internal/models"
+	"github.com/nxlak/mts-test/internal/parser"
 	"github.com/nxlak/mts-test/internal/render"
 	"github.com/spf13/cobra"
 )
@@ -45,7 +48,7 @@ func run(repoURL string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	a := analyzer.NewDefault()
+	a := analyzer.NewAnalyzer(cloner.NewCloner(), parser.NewParser(), checker.NewChecker())
 
 	report, err := a.Analyze(ctx, repoURL)
 	if err != nil {
@@ -56,7 +59,7 @@ func run(repoURL string) error {
 		report.Updates = filterDirect(report.Updates)
 	}
 
-	if err := render.Render(format, report); err != nil {
+	if err := render.Render(os.Stdout, format, report); err != nil {
 		return fmt.Errorf("render output: %w", err)
 	}
 

@@ -36,7 +36,7 @@ func (f *fakeChecker) FindUpdates(_ context.Context, _ []models.Dependency) ([]m
 }
 
 func TestAnalyzer_Success(t *testing.T) {
-	a := New(
+	a := NewAnalyzer(
 		&fakeCloner{dir: "/tmp/fake"},
 		&fakeParser{info: &models.ModuleInfo{
 			Name:      "github.com/nxlak/test",
@@ -69,7 +69,7 @@ func TestAnalyzer_Success(t *testing.T) {
 }
 
 func TestAnalyzer_ClonerError(t *testing.T) {
-	a := New(
+	a := NewAnalyzer(
 		&fakeCloner{err: errors.New("clone failed")},
 		&fakeParser{},
 		&fakeChecker{},
@@ -81,7 +81,7 @@ func TestAnalyzer_ClonerError(t *testing.T) {
 }
 
 func TestAnalyzer_ParserError(t *testing.T) {
-	a := New(
+	a := NewAnalyzer(
 		&fakeCloner{dir: "/tmp/fake"},
 		&fakeParser{err: errors.New("no go.mod")},
 		&fakeChecker{},
@@ -93,7 +93,7 @@ func TestAnalyzer_ParserError(t *testing.T) {
 }
 
 func TestAnalyzer_CheckerError(t *testing.T) {
-	a := New(
+	a := NewAnalyzer(
 		&fakeCloner{dir: "/tmp/fake"},
 		&fakeParser{info: &models.ModuleInfo{Name: "github.com/nxlak/checker-test", GoVersion: "1.21"}},
 		&fakeChecker{err: errors.New("checker down")},

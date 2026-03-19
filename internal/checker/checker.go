@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
+	"golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 
 	"github.com/nxlak/mts-test/internal/models"
@@ -77,8 +76,11 @@ func (c *checker) FindUpdates(ctx context.Context, deps []models.Dependency) ([]
 		hasNew bool
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	results := make([]result, len(deps))
-	jobs := make(chan job, len(deps))
+	jobs := make(chan job, c.workers)
 	errChan := make(chan error, 1)
 
 	var wg sync.WaitGroup
@@ -87,26 +89,35 @@ func (c *checker) FindUpdates(ctx context.Context, deps []models.Dependency) ([]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := range jobs {
+
+			for {
 				select {
 				case <-ctx.Done():
 					return
-				default:
-				}
 
-				latest, err := c.fetchLatest(ctx, j.dep.Path)
-				if err != nil {
-					results[j.idx] = result{}
-					continue
-				}
+				case j, ok := <-jobs:
+					if !ok {
+						return
+					}
 
-				if isNewer(latest, j.dep.CurrentVersion) {
-					results[j.idx] = result{
-						update: models.Update{
-							Dependency:    j.dep,
-							LatestVersion: latest,
-						},
-						hasNew: true,
+					latest, err := c.fetchLatest(ctx, j.dep.Path)
+					if err != nil {
+						select {
+						case errChan <- err:
+						default:
+						}
+						cancel()
+						return
+					}
+
+					if isNewer(latest, j.dep.CurrentVersion) {
+						results[j.idx] = result{
+							update: models.Update{
+								Dependency:    j.dep,
+								LatestVersion: latest,
+							},
+							hasNew: true,
+						}
 					}
 				}
 			}
@@ -114,6 +125,8 @@ func (c *checker) FindUpdates(ctx context.Context, deps []models.Dependency) ([]
 	}
 
 	go func() {
+		defer close(jobs)
+
 		for i, dep := range deps {
 			select {
 			case <-ctx.Done():
@@ -121,29 +134,31 @@ func (c *checker) FindUpdates(ctx context.Context, deps []models.Dependency) ([]
 			case jobs <- job{idx: i, dep: dep}:
 			}
 		}
-		close(jobs)
 	}()
 
-	go func() {
-		wg.Wait()
-		close(errChan)
-	}()
+	wg.Wait()
+	close(errChan)
 
-	if err := <-errChan; err != nil {
+	if err, ok := <-errChan; ok {
 		return nil, fmt.Errorf("proxy: check updates: %w", err)
 	}
 
-	var updates []models.Update
+	updates := make([]models.Update, 0, len(deps))
 	for _, r := range results {
 		if r.hasNew {
 			updates = append(updates, r.update)
 		}
 	}
+
 	return updates, nil
 }
 
 func (c *checker) fetchLatest(ctx context.Context, modulePath string) (string, error) {
-	encoded := encodePath(modulePath)
+	encoded, err := module.EscapePath(modulePath)
+	if err != nil {
+		return "", fmt.Errorf("proxy: encode path for %q: %w", modulePath, err)
+	}
+
 	reqURL := fmt.Sprintf("%s/%s/@latest", c.proxyBase, encoded)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
@@ -180,21 +195,4 @@ func isNewer(latestVer, currentVer string) bool {
 		return false
 	}
 	return semver.Compare(latestVer, currentVer) > 0
-}
-
-func encodePath(path string) string {
-	encoded, err := url.JoinPath("", path)
-	if err != nil {
-		return path
-	}
-	var b strings.Builder
-	for _, r := range encoded {
-		if r >= 'A' && r <= 'Z' {
-			b.WriteRune('!')
-			b.WriteRune(unicode.ToLower(r))
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }

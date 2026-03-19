@@ -33,6 +33,10 @@ func (p *parser) Parse(dir string) (*models.ModuleInfo, error) {
 		return nil, fmt.Errorf("gomod: parse %s: %w", goModPath, err)
 	}
 
+	if f.Module == nil || f.Module.Mod.Path == "" {
+		return nil, fmt.Errorf("gomod: %s: missing module directive", goModPath)
+	}
+
 	info := &models.ModuleInfo{
 		Name:      f.Module.Mod.Path,
 		GoVersion: goVersion(f),

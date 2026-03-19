@@ -21,20 +21,12 @@ type analyzer struct {
 	checker checker.Checker
 }
 
-func New(cloner cloner.Cloner, parser parser.Parser, checker checker.Checker) Analyzer {
+func NewAnalyzer(cloner cloner.Cloner, parser parser.Parser, checker checker.Checker) Analyzer {
 	return &analyzer{
 		cloner:  cloner,
 		parser:  parser,
 		checker: checker,
 	}
-}
-
-func NewDefault() Analyzer {
-	return New(
-		cloner.NewCloner(),
-		parser.NewParser(),
-		checker.NewChecker(),
-	)
 }
 
 func (a *analyzer) Analyze(ctx context.Context, repoURL string) (*models.Report, error) {
