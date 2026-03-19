@@ -15,20 +15,23 @@ make build
 ./mts-test https://github.com/nxlak/test
 
 # Show all dependencies (including indirect)
-./mts-test -all github.com/example/repo
+./mts-test github.com/example/repo -a
 
 # Output as JSON
-./mts-test -format json github.com/example/repo
+./mts-test github.com/example/repo -f json
 ```
 
 ## Flags
 
 ```
--format string
+-f, --format string
     Output format: text | json (default: text)
 
--all
+-a, --all
     Report both direct and indirect dependencies (default: false)
+
+-h, --help
+    Show help message
 ```
 
 ## Testing

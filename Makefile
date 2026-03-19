@@ -1,7 +1,7 @@
 .PHONY: build test run clean
 
 build:
-	go build -o mts-test ./cmd/app
+	go build -o mts-test .
 
 test:
 	go test ./...
